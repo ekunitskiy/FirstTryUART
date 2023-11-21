@@ -7,18 +7,24 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.Toast;
 
-import java.io.CharArrayWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
 public class MainActivity extends AppCompatActivity {
+    private byte startBit;
+    private byte length;
+    private byte opCode;
+    private byte[] parameter;
+    private byte chksum;
     BluetoothSocket socket;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
     }
+
+
 
     // here we can create a thread to send and receive data
     Thread thread = new Thread(new Runnable() {
@@ -53,23 +59,49 @@ public class MainActivity extends AppCompatActivity {
     });
 thread.start();
 
+    public MainActivity(byte opCode, byte[] parameter) {
+        this.startBit = 0x7E;
+        this.length = (byte) (3 + parameter.length); // 1 byte for opCode, 1 byte for chksum, and length of parameter
+        this.opCode = opCode;
+        this.parameter = parameter;
+        byte[] forChksum = new byte[] {startBit, length, opCode, parameter};
+        this.chksum = calculateChecksum(forChksum);
+    }
+
+    public byte[] getDataPackage() {
+        byte[] packet = new byte[5 + parameter.length];
+        packet[0] = startBit;
+        packet[1] = length;
+        packet[2] = opCode;
+        System.arraycopy(parameter, 0, packet, 3, parameter.length);
+        packet[3 + parameter.length] = chksum;
+        return packet;
+    }
+
     //Here we create our dataPacket
-    private byte[] createDataPacket() {
+    /*private byte[] createDataPacket() {
         byte start = (byte) 0xAA;
         byte length = 0x05;
         byte opCode = (byte) 0xA0;
         byte parameter = 0x00;
-        byte chksum = calculateChecksum(length, opCode, parameter);
+        byte[] forChksum = {start, length, opCode, parameter};
+        byte chksum = calculateChecksum(forChksum);
 
         return new byte[]{start, length, opCode, parameter, chksum};
     }
-
+*/
     //calculate the checksum according to our specifications:
-    private byte calculateChecksum(byte length, byte opCode, byte parameter) {
+    private byte calculateChecksum(byte[] data) {
         // Calculate checksum
-        byte chksum = (byte) (length + opCode + parameter);
-
+        byte chksum = 0;
+        for (int i = 0; i < data.length; i++) {
+            chksum += data[i] & 0xFF;
+        }
         return chksum;
+
+        //byte chksum = (byte) (length + opCode + parameter);
+
+        //return chksum;
     }
 
     //In the processData method, we can process the received data:
